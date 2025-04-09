@@ -10,7 +10,7 @@ from torchvision import transforms
 from transformers import AutoModelForImageSegmentation
 import os
 from dotenv import load_dotenv
-from ..models.ticket import HSRTicket
+from ..models.ticket import HSRTicket, HSRTicketRaw
 import cv2
 
 # Load environment variables from .env file
@@ -145,7 +145,8 @@ def extract(img_b64: str) -> HSRTicket:
                     }
                 ]
             }
-        ]
+        ],
+        response_format=HSRTicketRaw
     )
     
     try:

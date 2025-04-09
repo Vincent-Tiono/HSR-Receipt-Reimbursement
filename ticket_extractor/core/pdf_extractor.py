@@ -4,7 +4,7 @@ import json
 from markitdown import MarkItDown
 import os
 from dotenv import load_dotenv
-from ..models.ticket import HSRTicket
+from ..models.ticket import HSRTicket, HSRTicketRaw
 import base64
 from io import BytesIO
 
@@ -51,7 +51,8 @@ def extract(pdf_b64: str) -> HSRTicket:
                     "role": "user",
                     "content": prompt
                 }
-            ]
+            ],
+            response_format=HSRTicketRaw
         )
         
         # Get the response content
