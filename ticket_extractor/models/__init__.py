@@ -1,3 +1,4 @@
-from .ticket import HSRTicket
+from .ticket import TicketLLM
+from .receipt import ReceiptLLM
 
-__all__ = ["HSRTicket"] 
+__all__ = ["TicketLLM", "ReceiptLLM"] 

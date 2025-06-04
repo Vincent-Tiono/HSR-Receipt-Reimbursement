@@ -9,73 +9,9 @@ from torchvision import transforms
 from transformers import Mask2FormerForUniversalSegmentation
 import os
 from dotenv import load_dotenv
-from ..models.ticket import TicketLLM
+from ..models.receipt import ReceiptLLM
 from .ocr import detect_text
 import cv2
-
-# from pydantic import BaseModel
-# from typing import Dict, Any
-
-# class TicketLLM(BaseModel):
-#     """Base response model for ticket information from Gemini"""
-#     date: str
-#     price: int
-#     departure_station: str
-#     arrival_station: str
-#     serial_number: str
-#     val_date: bool
-#     val_price: bool
-#     val_departure_station: bool
-#     val_arrival_station: bool
-#     val_serial_number: bool
-
-# import os
-# import requests
-# from dotenv import load_dotenv
-
-# load_dotenv()
-# api_key = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-    
-# def detect_text(content):
-#     """Detects text in the file using REST API."""
-
-#     url = f'https://vision.googleapis.com/v1/images:annotate?key={api_key}'
-    
-#     request_data = {
-#         'requests': [{
-#             'image': {
-#                 'content': content
-#             },
-#             'features': [{
-#                 'type': 'TEXT_DETECTION',
-#                 'maxResults': 1
-#             }]
-#         }]
-#     }
-    
-#     # Make the API request
-#     response = requests.post(url, json=request_data)
-#     response.raise_for_status()  # Raise an exception for bad status codes
-    
-#     # Process the response
-#     result = response.json()
-    
-#     if 'responses' in result and result['responses']:
-#         texts = result['responses'][0].get('textAnnotations', [])
-        
-#         if texts:
-#             # Get only the first text annotation which contains the complete text
-#             complete_text = texts[0].get('description', '')
-#             print("Text extracted")
-
-#             return complete_text
-#         else:
-#             print("No text found in the response")
-#             return None
-#     else:
-#         print("No text found in the response")
-#         return None
-    
 
 # Load environment variables from .env file
 load_dotenv()
@@ -124,7 +60,7 @@ def process(image_array: np.ndarray) -> np.ndarray:
         preds = birefnet(input_images)[-1].sigmoid().cpu()
     pred = preds[0].squeeze()
     mask = pred.numpy()
-
+    
     # Resize mask to match input image dimensions
     height, width = image_array.shape[:2]
     mask = cv2.resize(mask, (width, height), interpolation=cv2.INTER_LINEAR)
@@ -180,7 +116,7 @@ def process_image(img_b64: str, padding=10) -> str:
     processed_img_b64 = base64.b64encode(buffer).decode('utf-8')
     return processed_img_b64
 
-def extract(img_b64: str) -> TicketLLM:
+def extract(img_b64: str) -> ReceiptLLM:
     """Send the image to the Gemini model and extract ticket information."""
     try:
         # Process image to remove background and crop
@@ -190,30 +126,14 @@ def extract(img_b64: str) -> TicketLLM:
         # OCR
         #########################################################
         ocr_text = detect_text(processed_img_b64)
-
-        print(ocr_text)
-
         
-        # prompt = (
-        #     'Here is an image of an HSR ticket. Extract the following information and return it in JSON format:'
-        #     '- date (format: yyyy/mm/dd),'
-        #     '- price,'
-        #     '- Departure station in English,'
-        #     '- Arrival station in English,'
-        #     '- 票號 (13-digit strict format: XX-X-XX-X-XXX-XXXX),'
-        #     'Return the response in this exact JSON format: {"date": "yyyy/mm/dd", "price": number, "departure_station": "station name", "arrival_station": "station name", "serial_number": "XX-X-XX-X-XXX-XXXX"}'
-        #     'If you are unable to extract any of the required information, return {"error": "unable to process"}'
-        # )
-        
-
         prompt = (
-            'Here is an image of an HSR ticket. Extract the following information and return it in JSON format:'
-            '- date,'
-            '- price,'
-            '- Departure station in English,'
-            '- Arrival station in English,'
-            '- 票號 (13-digit integer with format XX-X-XX-X-XXX-XXXX or XXXXXXXXXXXXX),'
-            'Return the response in JSON format with keys: date, price, departure_station, arrival_station, serial_number'
+            'Here is an image of a receipt. Extract the following information and return it in JSON format:'
+            '- invoice_date (format: yyyy-mm-dd),'
+            '- invoice_number (strict format: XX-XXXXXXXX, where XX are two English letters followed by hyphen and 8 digits),'
+            '- seller_id (8-digit number following 賣方),'
+            '- total_amount (integer number, remove 元),'
+            'Return the response in this exact JSON format: {"invoice_date": "yyyy-mm-dd", "invoice_number": "XX-XXXXXXXX", "seller_id": "12345678", "total_amount": "123"}'
             'If you are unable to extract any of the required information, return {"error": "unable to process"}'
         )
         
@@ -256,57 +176,27 @@ def extract(img_b64: str) -> TicketLLM:
             if isinstance(response, dict) and "error" in response:
                 raise ValueError(response["error"])
             
-            # Validate extracted information against OCR text
             validation = {
-                "date": response["date"] in ocr_text,
-                "price": str(response["price"]) in ocr_text,
-                "departure_station": response["departure_station"] in ocr_text,
-                "arrival_station": response["arrival_station"] in ocr_text,
-                "serial_number": str(response["serial_number"]) in ocr_text
+                "invoice_date": response["invoice_date"] in ocr_text,
+                "invoice_number": response["invoice_number"] in ocr_text,
+                "seller_id": response["seller_id"] in ocr_text,
+                "total_amount": response["total_amount"] in ocr_text
             }
             
-            # print("Validation results:", validation)
-
             if isinstance(response, dict):
-                if "price" in response:
-                    price_str = str(response["price"])
-                    if "NT$" in price_str:
-                        response["price"] = price_str.replace("NT$", "").strip()
-                # Extract numeric price
-                if "date" in response:
-                    response["date"] = response["date"].replace("-", "/").strip()
-
-                if "serial_number" in response:
-                    serial_str = str(response["serial_number"])
-                    response["serial_number"] = serial_str.replace("-", "").strip()
-                
-                if "price" in response:
-                    price_str = str(response["price"])
-                    if "NT$" in price_str:
-                        response["price"] = int(price_str.replace("NT$", "").strip())
-                
-                # Remove "THSR" from station names
-                if "departure_station" in response:
-                    response["departure_station"] = response["departure_station"].replace("THSR", "").strip()
-                    response["departure_station"] = response["departure_station"].replace("HSR", "").strip()
-                    response["departure_station"] = response["departure_station"].replace("Station", "").strip()
-                if "arrival_station" in response:
-                    response["arrival_station"] = response["arrival_station"].replace("THSR", "").strip()
-                    response["arrival_station"] = response["arrival_station"].replace("HSR", "").strip()
-                    response["arrival_station"] = response["arrival_station"].replace("Station", "").strip()
+                if "invoice_date" in response:
+                    response["invoice_date"] = response["invoice_date"].replace("-", "/").strip()
             
-            # Convert to TicketLLM model
-            return TicketLLM(
-                date=response["date"],
-                price=response["price"],
-                departure_station=response["departure_station"],
-                arrival_station=response["arrival_station"],
-                serial_number=response["serial_number"],
-                val_date=validation["date"],
-                val_price=validation["price"],
-                val_departure_station=validation["departure_station"],
-                val_arrival_station=validation["arrival_station"],
-                val_serial_number=validation["serial_number"]
+            # Convert to ReceiptLLM model
+            return ReceiptLLM(
+                invoice_date=response["invoice_date"],
+                invoice_number=response["invoice_number"],
+                seller_id=response["seller_id"],
+                total_amount=response["total_amount"],
+                val_invoice_date=validation["invoice_date"],
+                val_invoice_number=validation["invoice_number"],
+                val_seller_id=validation["seller_id"],
+                val_total_amount=validation["total_amount"]
             )
         except json.JSONDecodeError as e:
             # If the response contains error messages about being unable to process
@@ -317,12 +207,9 @@ def extract(img_b64: str) -> TicketLLM:
             raise ValueError("unable to process")
     except Exception as e:
         print(f"Error in extract function: {e}")
-        raise ValueError("unable to process")
+        raise ValueError("unable to process") 
     
 if __name__ == "__main__":
-    with open(r"C:\Users\ubiik-ai-vincent\Documents\tickets_0408\new.jpg", "rb") as f:
-        img_b64 =  base64.b64encode(f.read()).decode('utf-8')
-
-    # with open("test_2.txt", "r") as f:
-    #     img_b64 = f.read()
+    with open("test.txt", "r") as f:
+        img_b64 = f.read()
     print(extract(img_b64))

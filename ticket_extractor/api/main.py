@@ -1,14 +1,19 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from dotenv import load_dotenv
 import os
-from ..core.image_extractor import extract as extract_image
-from ..core.pdf_extractor import extract as extract_pdf
-from ..models.ticket import HSRTicket
+
+# Load environment variables at startup
+load_dotenv()
+
+# Verify OpenRouter API key is set
+if not os.getenv("OPENROUTER_API_KEY"):
+    raise RuntimeError("OPENROUTER_API_KEY environment variable is not set")
 
 app = FastAPI(
     title="HSR Ticket Extractor API",
-    description="API for extracting information from HSR tickets in image or PDF format",
+    description="API for extracting information from HSR tickets and receipts",
     version="1.0.0"
 )
 
@@ -25,14 +30,23 @@ app.add_middleware(
 SUPPORTED_IMAGE_FORMATS = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.webp', '.heic', '.heif'}
 SUPPORTED_PDF_FORMATS = {'.pdf'}
 
+# Error messages
+ERROR_MESSAGES = {
+    "invalid_format": "Invalid input or unsupported format",
+    "invalid_ticket": "The provided file does not appear to be a valid HSR ticket or the ticket format is not recognized",
+    "processing_error": "An error occurred while processing the ticket",
+    "server_error": "An unexpected error occurred while processing your request. Please try again later",
+    "classification_error": "An error occurred while classifying the image"
+}
+
 class ImageRequest(BaseModel):
     file_name: str
-    file_type: str  # File extension with dot (e.g., '.pdf', '.png', '.jpg')
+    file_ext: str  # File extension with dot (e.g., '.pdf', '.png', '.jpg')
     b64: str  # Base64-encoded image string
 
     def validate_format(self):
         """Validate that the file type is supported."""
-        file_ext = self.file_type.lower()
+        file_ext = self.file_ext.lower()
         
         if file_ext in SUPPORTED_IMAGE_FORMATS:
             return 'image'
@@ -41,39 +55,29 @@ class ImageRequest(BaseModel):
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported file format: {file_ext}. Supported formats: {', '.join(SUPPORTED_IMAGE_FORMATS | SUPPORTED_PDF_FORMATS)}"
+                detail={
+                    "error": "invalid_format",
+                    "message": ERROR_MESSAGES["invalid_format"]
+                }
             )
 
-@app.post("/extract", response_model=HSRTicket)
-async def extract_ticket(data: ImageRequest):
-    """
-    Extract information from an HSR ticket using base64-encoded image or PDF.
-    
-    Args:
-        data: ImageRequest containing base64-encoded image and file type
-        
-    Returns:
-        HSRTicket: Extracted ticket information
-    """
-    try:
-        # Validate file format and get processing type
-        process_type = data.validate_format()
-        
-        # Process based on file type
-        if process_type == 'image':
-            result = extract_image(data.b64)
-        else:  # pdf
-            result = extract_pdf(data.b64)
-        
-        # Create a new HSRTicket with the file_name
-        return HSRTicket(
-            file_name=data.file_name,
-            date=result.date,
-            price=result.price,
-            dep_station=result.dep_station,
-            arr_station=result.arr_station,
-            serial_number=result.serial_number
-        )
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+class ErrorResponse(BaseModel):
+    error: str
+    message: str
+
+class ClassificationRequest(BaseModel):
+    b64: str  # Base64-encoded image string
+
+class ClassificationResponse(BaseModel):
+    classification: str  # "ticket", "receipt", or "invalid image"
+
+# Import and include routers
+from .ticket_api import router as ticket_router
+from .receipt_api import router as receipt_router
+from .trad_receipt_api import router as trad_receipt_router
+from .classification_api import router as classification_router
+
+app.include_router(ticket_router)
+app.include_router(receipt_router)
+app.include_router(trad_receipt_router)
+app.include_router(classification_router) 
