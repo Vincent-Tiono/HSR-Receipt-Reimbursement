@@ -1,0 +1,46 @@
+{
+    "fid": 155,
+    "apikey": "y2S2Va@&Pr5m",
+    "fowner": "u109080",
+    "TagComments": "台北 - 新竹往返",
+    "TagDocDate": "2025/03/12",
+    "TagU_PC_BSTY1_Code": 2,
+    "TagU_PC_BSDAT_Code": "2025/02/06",
+    "TagU_PC_BSINV_Code": "2905910375295",
+    "TagU_PC_BSNOT": "16446274",
+    "TagU_PC_BSAMN_Code": "290",
+    "TagU_PC_BSTAX_Code": "0",
+    "TagU_PC_BSAMT_Code": "290",
+    "TagU_PC_BSTY5_Code": 0,
+    "AR0001": [
+      {
+        "列日期": "2025/03/05",
+        "TagReasonName": "高鐵費",
+        "TagAcctCode": "611303",
+        "TagQuantity": 1,
+        "TagPriceBefDi": 290,
+        "UntaxedAmount": 290,
+        "TagVatName": "進項稅額0%",
+        "TagVatGroup": "P0",
+        "TagVatRate": 0,
+        "TagPrice": 290,
+        "TagHP_Description": "台北新竹往返-2月"
+      }
+    ],
+    "金額總計": 290,
+    "AR0002": [
+      {
+        "TagU_PC_BSTY1": "二聯式收銀機∕載有稅額之其他憑證-22",
+        "TagU_PC_BSDAT": "2025/02/06",
+        "TagU_PC_BSINV": "2905910375295",
+        "TagU_PC_BSNOT": "16446274",
+        "TagU_PC_BSAMN": 290,
+        "TagU_PC_BSTAX": 0,
+        "TagU_PC_BSAMT": 290,
+        "TagU_PC_BSTY5": "是"
+      }
+    ],
+    "TagDpmVat": 290,
+    "TagVatSum": 0,
+    "TagDocTotal": 290
+  }

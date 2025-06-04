@@ -1,0 +1,11 @@
+numpy
+torch
+torchvision
+transformers
+fastapi
+Pillow
+uvicorn[standard]
+kornia 
+einops 
+timm
+python-multipart
